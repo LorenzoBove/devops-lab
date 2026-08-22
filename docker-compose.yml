@@ -1,0 +1,35 @@
+services:
+
+  mongodb:
+    image: mongo:7
+    container_name: devops-lab-mongodb
+
+    ports:
+      - "27017:27017"
+
+    volumes:
+      - devops-lab-mongodb-data:/data/db
+
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: devops-lab-api:0.1.0
+
+    container_name: devops-lab-api
+
+    ports:
+      - "8000:8000"
+
+    environment:
+      MONGODB_URL: mongodb://mongodb:27017
+      MONGODB_DATABASE: devops_lab
+
+    depends_on:
+      - mongodb
+
+
+volumes:
+  devops-lab-mongodb-data:
