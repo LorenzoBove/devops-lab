@@ -10,6 +10,13 @@ services:
     volumes:
       - devops-lab-mongodb-data:/data/db
 
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
 
   api:
     build:
@@ -23,12 +30,26 @@ services:
     ports:
       - "8000:8000"
 
-    environment:
-      MONGODB_URL: mongodb://mongodb:27017
-      MONGODB_DATABASE: devops_lab
+    env_file:
+      - .env
+
 
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
 
 volumes:
