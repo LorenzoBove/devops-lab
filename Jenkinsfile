@@ -4,6 +4,9 @@ pipeline {
     environment {
         CI_NETWORK = 'devops-lab-ci'
         MONGO_CONTAINER = 'devops-lab-mongodb-ci'
+
+        REGISTRY = 'ghcr.io'
+        IMAGE_NAME = 'ghcr.io/lorenzobove/devops-lab-api'
     }
 
     stages {
@@ -80,15 +83,67 @@ pipeline {
                 '''
             }
         }
+        stage('Image Metadata') {
+            steps {
+                script {
+                    env.GIT_SHORT_SHA = sh(
+                        script: 'git rev-parse --short=7 HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    env.IMAGE_TAG = "${env.BUILD_NUMBER}-${env.GIT_SHORT_SHA}"
+                }
+
+                sh '''
+                    echo "Build number: $BUILD_NUMBER"
+                    echo "Git commit:   $GIT_COMMIT"
+                    echo "Short SHA:    $GIT_SHORT_SHA"
+                    echo "Image tag:    $IMAGE_TAG"
+                    echo "Image:        $IMAGE_NAME:$IMAGE_TAG"
+                '''
+            }
+        }
         stage('Build Docker Image') {
             steps {
                 echo 'Building FastAPI Docker image'
 
                 sh '''
                     docker build \
-                        -t devops-lab-api:${BUILD_NUMBER} \
-                        -t devops-lab-api:latest \
+                        --label org.opencontainers.image.source=https://github.com/LorenzoBove/devops-lab \
+                        --label org.opencontainers.image.revision=$GIT_COMMIT \
+                        -t $IMAGE_NAME:$IMAGE_TAG \
+                        -t $IMAGE_NAME:sha-$GIT_SHORT_SHA \
+                        -t $IMAGE_NAME:latest \
                         .
+                '''
+            }
+        }
+        stage('Login to GHCR') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'github-ghcr',
+                        usernameVariable: 'GHCR_USERNAME',
+                        passwordVariable: 'GHCR_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        echo "$GHCR_TOKEN" | \
+                            docker login ghcr.io \
+                            -u "$GHCR_USERNAME" \
+                            --password-stdin
+                    '''
+                }
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+                echo 'Publishing Docker image to GHCR'
+
+                sh '''
+                    docker push $IMAGE_NAME:$IMAGE_TAG
+                    docker push $IMAGE_NAME:sha-$GIT_SHORT_SHA
+                    docker push $IMAGE_NAME:latest
                 '''
             }
         }
@@ -102,6 +157,7 @@ pipeline {
             sh '''
                 docker rm -f $MONGO_CONTAINER 2>/dev/null || true
                 docker network rm $CI_NETWORK 2>/dev/null || true
+                docker logout ghcr.io 2>/dev/null || true
             '''
         }
 
