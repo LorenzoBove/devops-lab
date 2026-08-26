@@ -80,6 +80,18 @@ pipeline {
                 '''
             }
         }
+        stage('Build Docker Image') {
+            steps {
+                echo 'Building FastAPI Docker image'
+
+                sh '''
+                    docker build \
+                        -t devops-lab-api:${BUILD_NUMBER} \
+                        -t devops-lab-api:latest \
+                        .
+                '''
+            }
+        }
     }
 
     post {
