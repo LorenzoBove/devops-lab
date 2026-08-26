@@ -32,17 +32,22 @@ pipeline {
             }
 
             steps {
-                echo 'Installing Python dependencies'
+                echo 'Creating Python virtual environment'
 
                 sh '''
                     python --version
-                    pip install --no-cache-dir -r requirements.txt
+
+                    python -m venv .venv
+
+                    .venv/bin/python -m pip install --upgrade pip
+
+                    .venv/bin/pip install --no-cache-dir -r requirements.txt
                 '''
 
                 echo 'Running pytest'
 
                 sh '''
-                    pytest -v
+                    .venv/bin/pytest -v
                 '''
             }
         }
