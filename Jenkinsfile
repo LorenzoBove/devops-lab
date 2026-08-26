@@ -14,19 +14,47 @@ pipeline {
                     echo "User:"
                     whoami
 
-                    echo "Operating system:"
-                    uname -a
-
-                    echo "Python:"
-                    python3 --version || true
-
-                    echo "Pip:"
-                    pip3 --version || true
-
                     echo "Docker:"
-                    docker --version || true
+                    docker --version
                 '''
             }
+        }
+
+        stage('Tests') {
+            agent {
+                docker {
+                    image 'python:3.11-slim'
+                }
+            }
+
+            environment {
+                MONGODB_DATABASE = 'devops_lab_test'
+            }
+
+            steps {
+                echo 'Installing Python dependencies'
+
+                sh '''
+                    python --version
+                    pip install --no-cache-dir -r requirements.txt
+                '''
+
+                echo 'Running pytest'
+
+                sh '''
+                    pytest -v
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully'
+        }
+
+        failure {
+            echo 'Pipeline failed'
         }
     }
 }
