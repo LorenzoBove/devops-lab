@@ -11,6 +11,20 @@ services:
     networks:
       - devops-lab
 
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "--eval",
+          "db.adminCommand('ping').ok"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 
   api:
     image: ${IMAGE_NAME}:${IMAGE_TAG}
@@ -25,10 +39,24 @@ services:
       - "8000:8000"
 
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
 
     networks:
       - devops-lab
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 
 volumes:
