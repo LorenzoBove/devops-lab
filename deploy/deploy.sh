@@ -20,25 +20,31 @@ echo "================================="
 echo "Target image:"
 echo "${IMAGE_NAME}:${IMAGE_TAG}"
 
-
 health_check() {
 
     echo "Checking application health..."
 
     for attempt in 1 2 3 4 5 6 7 8 9 10; do
 
-        if curl -fsS http://localhost:8000/health; then
+        if docker exec devops-lab-api \
+            python -c \
+            "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"; then
+
             echo
             echo "Health check passed"
+
             return 0
+
         fi
 
         echo "Health check attempt ${attempt} failed..."
+
         sleep 3
 
     done
 
     echo "Health check failed"
+
     return 1
 }
 
@@ -200,7 +206,7 @@ echo
 echo "Deploying new API version..."
 
 
-if ! docker compose up -d api; then
+if ! docker compose up -d ; then
 
     echo
     echo "================================="
