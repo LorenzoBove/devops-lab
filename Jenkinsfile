@@ -109,7 +109,7 @@ pipeline {
 
                 sh '''
                     docker build \
-                        --platform linux/amd64
+                        --platform linux/amd64 \
                         --label org.opencontainers.image.source=https://github.com/LorenzoBove/devops-lab \
                         --label org.opencontainers.image.revision=$GIT_COMMIT \
                         -t $IMAGE_NAME:$IMAGE_TAG \
