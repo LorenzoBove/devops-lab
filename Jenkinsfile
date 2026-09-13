@@ -175,6 +175,20 @@ pipeline {
                     sh '''
                         set +x
 
+                        
+                        echo "Copying production Compose configuration..."
+
+                        scp \
+                            -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=accept-new \
+                            deploy/docker-compose.prod.yml \
+                            "$EC2_USER@$EC2_HOST:/home/ec2-user/devops-lab/docker-compose.yml"
+
+
+                        
+                        
+                        
+                        
                         echo "Authenticating EC2 with GHCR..."
 
                         printf '%s' "$GHCR_TOKEN" | \
@@ -186,6 +200,9 @@ pipeline {
                                     -u '$GHCR_USERNAME' \
                                     --password-stdin"
 
+
+
+                        
 
                         echo "Deploying image $IMAGE_NAME:$IMAGE_TAG"
 
