@@ -156,20 +156,25 @@ pipeline {
 
 
         stage('Deploy to EC2') {
+
             steps {
-                echo 'Deploying application to AWS EC2 with Docker Compose'
+
+                echo 'Deploying application to AWS EC2'
 
                 withCredentials([
+
                     sshUserPrivateKey(
                         credentialsId: 'aws-ec2-ssh',
                         keyFileVariable: 'EC2_SSH_KEY',
                         usernameVariable: 'EC2_USER'
                     ),
+
                     usernamePassword(
                         credentialsId: 'github-ghcr',
-                        usernameVariable: 'GHCR_USERNAME',
+                        usernameVariable: 'GHCR_USER',
                         passwordVariable: 'GHCR_TOKEN'
                     )
+
                 ]) {
 
                     sh '''
@@ -177,16 +182,21 @@ pipeline {
 
                         echo "Validating Compose configuration..."
 
-                        test -s deploy/docker-compose.prod.yml
-
                         IMAGE_NAME="$IMAGE_NAME" \
                         IMAGE_TAG="$IMAGE_TAG" \
                         docker compose \
                             -f deploy/docker-compose.prod.yml \
                             config
 
-                        
-                        echo "Copying production Compose configuration..."
+
+                        echo "Copying deployment files..."
+
+                        ssh \
+                            -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=accept-new \
+                            "$EC2_USER@$EC2_HOST" \
+                            "mkdir -p /home/ec2-user/devops-lab"
+
 
                         scp \
                             -i "$EC2_SSH_KEY" \
@@ -195,184 +205,42 @@ pipeline {
                             "$EC2_USER@$EC2_HOST:/home/ec2-user/devops-lab/docker-compose.yml"
 
 
-                        
-                        
-                        
-                        
+                        scp \
+                            -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=accept-new \
+                            deploy/deploy.sh \
+                            "$EC2_USER@$EC2_HOST:/home/ec2-user/devops-lab/deploy.sh"
+
+
                         echo "Authenticating EC2 with GHCR..."
 
-                        printf '%s' "$GHCR_TOKEN" | \
-                            ssh \
-                                -i "$EC2_SSH_KEY" \
-                                -o StrictHostKeyChecking=accept-new \
-                                "$EC2_USER@$EC2_HOST" \
-                                "docker login ghcr.io \
-                                    -u '$GHCR_USERNAME' \
-                                    --password-stdin"
-
-
-
-                        
-
-                        echo "Deploying $IMAGE_NAME:$IMAGE_TAG"
-
+                        echo "$GHCR_TOKEN" | \
                         ssh \
                             -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=accept-new \
                             "$EC2_USER@$EC2_HOST" \
-                            bash -s -- "$IMAGE_NAME" "$IMAGE_TAG" <<'REMOTE_SCRIPT'
-
-                        set -e
-
-                        IMAGE_NAME="$1"
-                        IMAGE_TAG="$2"
-
-                        cd ~/devops-lab
-
-                        echo "Saving current deployment..."
-
-                        if [ -f .env ]; then
-                            cp .env .env.previous
-                        fi
+                            "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
 
 
-                        echo "Writing new deployment configuration..."
-
-                        printf 'IMAGE_NAME=%s\nIMAGE_TAG=%s\n' \
-                            "$IMAGE_NAME" \
-                            "$IMAGE_TAG" \
-                            > .env
-
-
-                        echo "Pulling new API image..."
-
-                        docker compose pull api
-
-
-                        echo "Deploying new API version..."
-
-                        docker compose up -d api
-
-
-                        echo "Waiting for application health check..."
-
-                        for i in 1 2 3 4 5 6 7 8 9 10
-                        do
-                            if curl -fsS http://localhost:8000/health
-                            then
-                                echo
-                                echo "Health check passed"
-                                echo "Deployment successful"
-
-                                docker compose ps
-
-                                exit 0
-                            fi
-
-                            echo "Health check attempt $i failed..."
-                            sleep 3
-                        done
-
-
-                        echo "================================="
-                        echo "NEW DEPLOYMENT FAILED"
-                        echo "Starting automatic rollback"
-                        echo "================================="
-
-                        echo "Failed container logs:"
-                        docker logs devops-lab-api || true
-
-
-                        if [ ! -f .env.previous ]; then
-                            echo "ERROR: no previous deployment available"
-                            exit 1
-                        fi
-
-
-                        echo "Restoring previous environment..."
-
-                        cp .env.previous .env
-
-
-                        echo "Previous deployment configuration:"
-
-                        cat .env
-
-
-                        echo "Pulling previous image..."
-
-                        docker compose pull api
-
-
-                        echo "Restoring previous API version..."
-
-                        docker compose up -d api
-
-
-                        echo "Checking rolled-back application..."
-
-                        for i in 1 2 3 4 5 6 7 8 9 10
-                        do
-                            if curl -fsS http://localhost:8000/health
-                            then
-                                echo
-                                echo "Rollback successful"
-
-                                docker compose ps
-
-                                # Il servizio è stato recuperato,
-                                # ma la nuova release ha fallito.
-                                exit 1
-                            fi
-
-                            echo "Rollback health check attempt $i failed..."
-                            sleep 3
-                        done
-
-
-                        echo "CRITICAL: rollback health check failed"
-
-                        docker logs devops-lab-api || true
-
-                        exit 1
-
-                        REMOTE_SCRIPT
-
-
-                        echo "Running post-deployment health check..."
+                        echo "Executing remote deployment..."
 
                         ssh \
                             -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=accept-new \
                             "$EC2_USER@$EC2_HOST" \
                             "
-                                for i in 1 2 3 4 5 6 7 8 9 10
-                                do
-                                    if curl -fsS http://localhost:8000/health
-                                    then
-                                        echo
-                                        echo 'Health check passed'
-                                        exit 0
-                                    fi
+                                chmod +x /home/ec2-user/devops-lab/deploy.sh &&
 
-                                    echo 'API not ready yet...'
-                                    sleep 3
-                                done
-
-                                echo 'Health check failed'
-                                docker logs devops-lab-api
-                                exit 1
+                                IMAGE_NAME='$IMAGE_NAME' \
+                                IMAGE_TAG='$IMAGE_TAG' \
+                                /home/ec2-user/devops-lab/deploy.sh
                             "
-
-
-                        ssh \
-                            -i "$EC2_SSH_KEY" \
-                            -o StrictHostKeyChecking=accept-new \
-                            "$EC2_USER@$EC2_HOST" \
-                            "docker logout ghcr.io >/dev/null 2>&1 || true"
                     '''
+
                 }
+
             }
+
         }
 
     }
