@@ -3,7 +3,6 @@
 
 from fastapi import APIRouter, HTTPException
 
-"""
 
 router = APIRouter()
 
@@ -22,3 +21,7 @@ def health():
         status_code=500,
         detail="Intentional health check failure"
     )
+
+
+
+"""
