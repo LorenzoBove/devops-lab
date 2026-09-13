@@ -175,6 +175,16 @@ pipeline {
                     sh '''
                         set +x
 
+                        echo "Validating Compose configuration..."
+
+                        test -s deploy/docker-compose.prod.yml
+
+                        IMAGE_NAME="$IMAGE_NAME" \
+                        IMAGE_TAG="$IMAGE_TAG" \
+                        docker compose \
+                            -f deploy/docker-compose.prod.yml \
+                            config
+
                         
                         echo "Copying production Compose configuration..."
 
