@@ -64,17 +64,11 @@ services:
     container_name: devops-lab-caddy
     restart: unless-stopped
 
-    command:
-      [
-        "reverse-proxy",
-        "--from",
-        ":80",
-        "--to",
-        "api:8000"
-      ]
-
     ports:
       - "80:80"
+
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
 
     depends_on:
       api:

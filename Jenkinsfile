@@ -188,6 +188,11 @@ pipeline {
                             -f deploy/docker-compose.prod.yml \
                             config
 
+                        docker run --rm \
+                            -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+                            caddy:2-alpine \
+                            caddy validate --config /etc/caddy/Caddyfile
+
 
                         echo "Copying deployment files..."
 
@@ -203,6 +208,13 @@ pipeline {
                             -o StrictHostKeyChecking=accept-new \
                             deploy/docker-compose.prod.yml \
                             "$EC2_USER@$EC2_HOST:/home/ec2-user/devops-lab/docker-compose.yml"
+
+                        scp \
+                            -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=accept-new \
+                            deploy/Caddyfile \
+                            "$EC2_USER@$EC2_HOST:/home/ec2-user/devops-lab/Caddyfile"
+
 
 
                         scp \
