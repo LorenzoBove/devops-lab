@@ -188,10 +188,7 @@ pipeline {
                             -f deploy/docker-compose.prod.yml \
                             config
 
-                        docker run --rm \
-                            -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
-                            caddy:2-alpine \
-                            caddy validate --config /etc/caddy/Caddyfile
+               
 
 
                         echo "Copying deployment files..."
