@@ -200,6 +200,25 @@ pipeline {
                                     -p 8000:8000 \
                                     $IMAGE_NAME:$IMAGE_TAG
 
+
+                                echo 'Waiting for API health check...'
+
+                                for i in 1 2 3 4 5 6 7 8 9 10
+                                do
+                                    if curl -fsS http://localhost:8000/health
+                                    then
+                                        echo 'Health check passed'
+                                        exit 0
+                                    fi
+
+                                    echo 'API not ready yet...'
+                                    sleep 3
+                                done
+
+                                echo 'Health check failed'
+                                docker logs devops-lab-api
+                                exit 1
+
                                 docker logout ghcr.io
                             "
                     '''
