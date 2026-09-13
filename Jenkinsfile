@@ -7,6 +7,8 @@ pipeline {
 
         REGISTRY = 'ghcr.io'
         IMAGE_NAME = 'ghcr.io/lorenzobove/devops-lab-api'
+
+        EC2_HOST = '16.171.0.97'
     }
 
     stages {
@@ -148,6 +150,68 @@ pipeline {
                 '''
             }
         }
+
+
+        stage('Deploy to EC2') {
+            steps {
+                echo 'Deploying application to AWS EC2'
+
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'aws-ec2-ssh',
+                        keyFileVariable: 'EC2_SSH_KEY',
+                        usernameVariable: 'EC2_USER'
+                    ),
+                    usernamePassword(
+                        credentialsId: 'github-ghcr',
+                        usernameVariable: 'GHCR_USERNAME',
+                        passwordVariable: 'GHCR_TOKEN'
+                    )
+                ]) {
+
+                    sh '''
+                        set +x
+
+                        echo "Connecting to EC2..."
+
+                        printf '%s' "$GHCR_TOKEN" | \
+                            ssh \
+                                -i "$EC2_SSH_KEY" \
+                                -o StrictHostKeyChecking=accept-new \
+                                "$EC2_USER@$EC2_HOST" \
+                                "docker login ghcr.io \
+                                    -u '$GHCR_USERNAME' \
+                                    --password-stdin"
+
+                        ssh \
+                            -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=accept-new \
+                            "$EC2_USER@$EC2_HOST" \
+                            "
+                                docker pull $IMAGE_NAME:$IMAGE_TAG
+
+                                docker rm -f devops-lab-api 2>/dev/null || true
+
+                                docker run -d \
+                                    --name devops-lab-api \
+                                    --network devops-lab \
+                                    -e MONGODB_URL=mongodb://devops-lab-mongodb:27017 \
+                                    -e MONGODB_DATABASE=devops_lab \
+                                    -p 8000:8000 \
+                                    $IMAGE_NAME:$IMAGE_TAG
+
+                                docker logout ghcr.io
+                            "
+                    '''
+                }
+            }
+        }
+
+
+
+
+
+
     }
 
     post {
