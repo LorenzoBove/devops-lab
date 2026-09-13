@@ -152,9 +152,12 @@ pipeline {
         }
 
 
+
+
+
         stage('Deploy to EC2') {
             steps {
-                echo 'Deploying application to AWS EC2'
+                echo 'Deploying application to AWS EC2 with Docker Compose'
 
                 withCredentials([
                     sshUserPrivateKey(
@@ -172,7 +175,7 @@ pipeline {
                     sh '''
                         set +x
 
-                        echo "Connecting to EC2..."
+                        echo "Authenticating EC2 with GHCR..."
 
                         printf '%s' "$GHCR_TOKEN" | \
                             ssh \
@@ -183,30 +186,44 @@ pipeline {
                                     -u '$GHCR_USERNAME' \
                                     --password-stdin"
 
+
+                        echo "Deploying image $IMAGE_NAME:$IMAGE_TAG"
+
                         ssh \
                             -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=accept-new \
                             "$EC2_USER@$EC2_HOST" \
                             "
-                                docker pull $IMAGE_NAME:$IMAGE_TAG
+                                cd ~/devops-lab
 
-                                docker rm -f devops-lab-api 2>/dev/null || true
+                                printf 'IMAGE_NAME=%s\\nIMAGE_TAG=%s\\n' \
+                                    '$IMAGE_NAME' \
+                                    '$IMAGE_TAG' \
+                                    > .env
 
-                                docker run -d \
-                                    --name devops-lab-api \
-                                    --network devops-lab \
-                                    -e MONGODB_URL=mongodb://devops-lab-mongodb:27017 \
-                                    -e MONGODB_DATABASE=devops_lab \
-                                    -p 8000:8000 \
-                                    $IMAGE_NAME:$IMAGE_TAG
+                                echo 'Pulling new API image...'
+                                docker compose pull api
+
+                                echo 'Starting updated application...'
+                                docker compose up -d
+
+                                echo 'Current containers:'
+                                docker compose ps
+                            "
 
 
-                                echo 'Waiting for API health check...'
+                        echo "Running post-deployment health check..."
 
+                        ssh \
+                            -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=accept-new \
+                            "$EC2_USER@$EC2_HOST" \
+                            "
                                 for i in 1 2 3 4 5 6 7 8 9 10
                                 do
                                     if curl -fsS http://localhost:8000/health
                                     then
+                                        echo
                                         echo 'Health check passed'
                                         exit 0
                                     fi
@@ -218,17 +235,18 @@ pipeline {
                                 echo 'Health check failed'
                                 docker logs devops-lab-api
                                 exit 1
-
-                                docker logout ghcr.io
                             "
+
+
+                        ssh \
+                            -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=accept-new \
+                            "$EC2_USER@$EC2_HOST" \
+                            "docker logout ghcr.io >/dev/null 2>&1 || true"
                     '''
                 }
             }
         }
-
-
-
-
 
     }
 
