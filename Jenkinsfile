@@ -220,121 +220,123 @@ pipeline {
                             -i "$EC2_SSH_KEY" \
                             -o StrictHostKeyChecking=accept-new \
                             "$EC2_USER@$EC2_HOST" \
-                            "
-                                set -e
+                            bash -s -- "$IMAGE_NAME" "$IMAGE_TAG" <<'REMOTE_SCRIPT'
 
-                                cd ~/devops-lab
+                        set -e
 
-                                echo 'Saving current deployment...'
+                        IMAGE_NAME="$1"
+                        IMAGE_TAG="$2"
 
-                                if [ -f .env ]; then
-                                    cp .env .env.previous
-                                fi
+                        cd ~/devops-lab
 
+                        echo "Saving current deployment..."
 
-                                echo 'Writing new deployment configuration...'
-
-                                printf 'IMAGE_NAME=%s\\nIMAGE_TAG=%s\\n' \
-                                    '$IMAGE_NAME' \
-                                    '$IMAGE_TAG' \
-                                    > .env
+                        if [ -f .env ]; then
+                            cp .env .env.previous
+                        fi
 
 
-                                echo 'Pulling new API image...'
+                        echo "Writing new deployment configuration..."
 
-                                docker compose pull api
-
-
-                                echo 'Deploying new API version...'
-
-                                docker compose up -d api
+                        printf 'IMAGE_NAME=%s\nIMAGE_TAG=%s\n' \
+                            "$IMAGE_NAME" \
+                            "$IMAGE_TAG" \
+                            > .env
 
 
-                                echo 'Waiting for application health check...'
+                        echo "Pulling new API image..."
 
-                                HEALTH_OK=false
-
-                                for i in 1 2 3 4 5 6 7 8 9 10
-                                do
-                                    if curl -fsS http://localhost:8000/health
-                                    then
-                                        echo
-                                        echo 'Health check passed'
-                                        HEALTH_OK=true
-                                        break
-                                    fi
-
-                                    echo \"Health check attempt \$i failed...\"
-                                    sleep 3
-                                done
+                        docker compose pull api
 
 
-                                if [ \"\$HEALTH_OK\" = true ]; then
-                                    echo 'Deployment successful'
-                                    docker compose ps
-                                    exit 0
-                                fi
+                        echo "Deploying new API version..."
+
+                        docker compose up -d api
 
 
-                                echo '================================='
-                                echo 'NEW DEPLOYMENT FAILED'
-                                echo 'Starting automatic rollback'
-                                echo '================================='
+                        echo "Waiting for application health check..."
 
-                                echo 'Failed container logs:'
-                                docker logs devops-lab-api || true
+                        for i in 1 2 3 4 5 6 7 8 9 10
+                        do
+                            if curl -fsS http://localhost:8000/health
+                            then
+                                echo
+                                echo "Health check passed"
+                                echo "Deployment successful"
 
+                                docker compose ps
 
-                                if [ ! -f .env.previous ]; then
-                                    echo 'ERROR: no previous deployment available'
-                                    exit 1
-                                fi
+                                exit 0
+                            fi
 
-
-                                echo 'Restoring previous environment...'
-
-                                cp .env.previous .env
-
-
-                                echo 'Previous deployment configuration:'
-
-                                cat .env
+                            echo "Health check attempt $i failed..."
+                            sleep 3
+                        done
 
 
-                                echo 'Pulling previous image...'
+                        echo "================================="
+                        echo "NEW DEPLOYMENT FAILED"
+                        echo "Starting automatic rollback"
+                        echo "================================="
 
-                                docker compose pull api
-
-
-                                echo 'Restoring previous API version...'
-
-                                docker compose up -d api
-
-
-                                echo 'Checking rolled-back application...'
-
-                                for i in 1 2 3 4 5 6 7 8 9 10
-                                do
-                                    if curl -fsS http://localhost:8000/health
-                                    then
-                                        echo
-                                        echo 'Rollback successful'
-                                        docker compose ps
-
-                                        exit 1
-                                    fi
-
-                                    echo \"Rollback health check attempt \$i failed...\"
-                                    sleep 3
-                                done
+                        echo "Failed container logs:"
+                        docker logs devops-lab-api || true
 
 
-                                echo 'CRITICAL: rollback health check failed'
+                        if [ ! -f .env.previous ]; then
+                            echo "ERROR: no previous deployment available"
+                            exit 1
+                        fi
 
-                                docker logs devops-lab-api || true
 
+                        echo "Restoring previous environment..."
+
+                        cp .env.previous .env
+
+
+                        echo "Previous deployment configuration:"
+
+                        cat .env
+
+
+                        echo "Pulling previous image..."
+
+                        docker compose pull api
+
+
+                        echo "Restoring previous API version..."
+
+                        docker compose up -d api
+
+
+                        echo "Checking rolled-back application..."
+
+                        for i in 1 2 3 4 5 6 7 8 9 10
+                        do
+                            if curl -fsS http://localhost:8000/health
+                            then
+                                echo
+                                echo "Rollback successful"
+
+                                docker compose ps
+
+                                # Il servizio è stato recuperato,
+                                # ma la nuova release ha fallito.
                                 exit 1
-                            "
+                            fi
+
+                            echo "Rollback health check attempt $i failed..."
+                            sleep 3
+                        done
+
+
+                        echo "CRITICAL: rollback health check failed"
+
+                        docker logs devops-lab-api || true
+
+                        exit 1
+
+                        REMOTE_SCRIPT
 
 
                         echo "Running post-deployment health check..."
