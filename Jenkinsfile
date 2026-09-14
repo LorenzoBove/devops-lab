@@ -8,7 +8,7 @@ pipeline {
         REGISTRY = 'ghcr.io'
         IMAGE_NAME = 'ghcr.io/lorenzobove/devops-lab-api'
 
-        EC2_HOST = '16.171.0.97'
+        EC2_HOST = '13.49.220.107'
     }
 
     stages {
