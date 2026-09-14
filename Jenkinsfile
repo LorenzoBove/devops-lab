@@ -220,6 +220,12 @@ pipeline {
                             deploy/deploy.sh \
                             "$EC2_USER@$EC2_HOST:/home/ec2-user/devops-lab/deploy.sh"
 
+                        scp \
+                            -i "$EC2_SSH_KEY" \
+                            -o StrictHostKeyChecking=accept-new \
+                            deploy/health_checks.sh \
+                            "$EC2_USER@$EC2_HOST:/home/ec2-user/devops-lab/health_checks.sh"
+
 
                         echo "Authenticating EC2 with GHCR..."
 
