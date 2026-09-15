@@ -10,6 +10,7 @@ router = APIRouter()
 def database_status():
     client.admin.command("ping")
     
+    
 
     return {
         "database": "ok"
